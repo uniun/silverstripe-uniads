@@ -8,88 +8,92 @@
  * @author Marcus Nyeholt <marcus@silverstripe.com.au>
  * @license BSD http://silverstripe.org/BSD-license
  */
-class UniadsExtension extends DataExtension {
+class UniadsExtension extends DataExtension
+{
 
-	private static $db = array(
-		'InheritSettings' => 'Boolean',
-	);
-	private static $defaults = array(
-		'InheritSettings' => true
-	);
-	private static $many_many = array(
-		'Ads' => 'UniadsObject',
-	);
-	private static $has_one = array(
-		'UseCampaign' => 'UniadsCampaign',
-	);
+    private static $db = array(
+        'InheritSettings' => 'Boolean',
+    );
+    private static $defaults = array(
+        'InheritSettings' => true
+    );
+    private static $many_many = array(
+        'Ads' => 'UniadsObject',
+    );
+    private static $has_one = array(
+        'UseCampaign' => 'UniadsCampaign',
+    );
 
-	private function getListboxOptions($o) {
-		$list = new DataList($o);
-		return array('' => '') + $list->map()->toArray();
-	}
+    private function getListboxOptions($o)
+    {
+        $list = new DataList($o);
+        return array('' => '') + $list->map()->toArray();
+    }
 
-	public function updateCMSFields(FieldList $fields) {
-		parent::updateCMSFields($fields);
+    public function updateCMSFields(FieldList $fields)
+    {
+        parent::updateCMSFields($fields);
 
-		$fields->findOrMakeTab('Root.Advertisements', _t('UniadsObject.PLURALNAME', 'Advertisements'));
-		$fields->addFieldToTab('Root.Advertisements', new CheckboxField('InheritSettings', _t('UniadsObject.InheritSettings', 'Inherit parent settings')));
+        $fields->findOrMakeTab('Root.Advertisements', _t('UniadsObject.PLURALNAME', 'Advertisements'));
+        $fields->addFieldToTab('Root.Advertisements', new CheckboxField('InheritSettings', _t('UniadsObject.InheritSettings', 'Inherit parent settings')));
 
-		if (!$this->owner->InheritSettings) {
-			$conf = GridFieldConfig_RelationEditor::create();
-			$conf->getComponentByType('GridFieldAddExistingAutocompleter')->setSearchFields(array('Title'));
-			$grid = new GridField("Advertisements", _t('UniadsObject.PLURALNAME', 'Advertisements'), $this->owner->Ads(), $conf);
-			$fields->addFieldToTab("Root.Advertisements", $grid);
-			$fields->addFieldToTab('Root.Advertisements', new DropdownField('UseCampaignID', _t('UniadsObject.UseCampaign', 'Use Campaign'), $this->getListboxOptions('UniadsCampaign')));
-		}
-	}
+        if (!$this->owner->InheritSettings) {
+            $conf = GridFieldConfig_RelationEditor::create();
+            $conf->getComponentByType('GridFieldAddExistingAutocompleter')->setSearchFields(array('Title'));
+            $grid = new GridField("Advertisements", _t('UniadsObject.PLURALNAME', 'Advertisements'), $this->owner->Ads(), $conf);
+            $fields->addFieldToTab("Root.Advertisements", $grid);
+            $fields->addFieldToTab('Root.Advertisements', new DropdownField('UseCampaignID', _t('UniadsObject.UseCampaign', 'Use Campaign'), $this->getListboxOptions('UniadsCampaign')));
+        }
+    }
 
-	/** Displays a randomly chosen advertisement of the specified dimensions.
-	 *
-	 * @param zone of the advertisement
-	 */
-	public function DisplayAd($zone) {
-		$ad = null;
+    /** Displays a randomly chosen advertisement of the specified dimensions.
+     *
+     * @param zone of the advertisement
+     */
+    public function DisplayAd($zone)
+    {
+        $ad = null;
 
-		if ($zone) {
-			if (!is_object($zone)) {
-				$zone = UniadsZone::get()
-					->filter(array(
-						'Title' => $zone,
-						'Active' => 1
-					))
-					->first();
-			}
-			if ($zone) {
-				$toUse = $this->owner;
-				if ($toUse->InheritSettings) {
-					while ($toUse->ParentID) {
-						if (!$toUse->InheritSettings) {
-							break;
-						}
-						$toUse = $toUse->Parent();
-					}
-					if(!$toUse->ParentID && $toUse->InheritSettings) {
-						$toUse = null;
-					}
-				}
+        if ($zone) {
+            if (!is_object($zone)) {
+                $zone = UniadsZone::get()
+                    ->filter(array(
+                        'Title' => $zone,
+                        'Active' => 1
+                    ))
+                    ->first();
+            }
+            if ($zone) {
+                $toUse = $this->owner;
+                if ($toUse->InheritSettings) {
+                    while ($toUse->ParentID) {
+                        if (!$toUse->InheritSettings) {
+                            break;
+                        }
+                        $toUse = $toUse->Parent();
+                    }
+                    if (!$toUse->ParentID && $toUse->InheritSettings) {
+                        $toUse = null;
+                    }
+                }
 
-				$page_related = "and not exists (select * from Page_Ads pa where pa.UniadsObjectID = UniadsObject.ID)";
-				$campaign = '';
-				if ($toUse) {
-					$page_related = "and (
+                $page_related = "and not exists (select * from Page_Ads pa where pa.UniadsObjectID = UniadsObject.ID)";
+                $campaign = '';
+                if ($toUse) {
+                    $page_related = "and (
 						exists (select * from Page_Ads pa where pa.UniadsObjectID = UniadsObject.ID and pa.PageID = ".$toUse->ID.")
 						or not exists (select * from Page_Ads pa where pa.UniadsObjectID = UniadsObject.ID)
 					)";
-					if ($toUse->UseCampaignID) {
-						$campaign = "and c.ID = '" . $toUse->UseCampaignID . "'";
-					}
-				}
+                    if ($toUse->UseCampaignID) {
+                        $campaign = "and c.ID = '" . $toUse->UseCampaignID . "'";
+                    }
+                }
 
-				$base_from = "
+                $base_from = "
 					UniadsObject
 						left join UniadsCampaign c on c.ID = UniadsObject.CampaignID
 				";
-				$base_where = "
+                $base_where = "
 					UniadsObject.ZoneID = '" . $zone->ID . "'
 					".$page_related."
 					and (c.ID is null or (
@@ -102,16 +106,14 @@ class UniadsExtension extends DataExtension {
 					and (UniadsObject.Expires >= '" . date('Y-m-d') . "' or UniadsObject.Expires = '' or UniadsObject.Expires is null)
 					and UniadsObject.Active = '1'
 				";
-				$subbase_where = preg_replace_callback(
-					'/(?<!\w)(UniadsObject|c)\./'
-					, function ($m) { return str_repeat($m[1], 2).'.'; }
-					, $base_where
-				);
+                $subbase_where = preg_replace_callback(
+                    '/(?<!\w)(UniadsObject|c)\./', function ($m) { return str_repeat($m[1], 2).'.'; }, $base_where
+                );
 
-				$sqlQuery = new SQLQuery(
-					$select = 'UniadsObject.ID',
-					$from = array($base_from),
-					$where = $base_where . "
+                $sqlQuery = new SQLQuery(
+                    $select = 'UniadsObject.ID',
+                    $from = array($base_from),
+                    $where = $base_where . "
 						and (UniadsObject.ImpressionLimit = 0 or UniadsObject.ImpressionLimit > UniadsObject.Impressions)
 						and UniadsObject.Weight >= (rand() * (
 							select max(UniadsObjectUniadsObject.Weight)
@@ -119,48 +121,47 @@ class UniadsExtension extends DataExtension {
 								left join UniadsCampaign cc on cc.ID = UniadsObjectUniadsObject.CampaignID
 							where " . $subbase_where . "
 						))",
-					$order = "rand()",
-					$limit = 1
-				);
-				singleton('UniadsObject')->extend('augmentSQL', $sqlQuery);
-				//echo $sqlQuery->sql();
-				$result = $sqlQuery->execute();
-				if($result && count($result) > 0) {
-					$row = $result->First();
-					if (isset($row['ID']) && $row['ID'] !== '') {
-						$ad = UniadsObject::get()->byID($row['ID']);
-						// now we can log impression
-						$conf = UniadsObject::config();
-						if ($conf->record_impressions) {
-							$ad->Impressions++;
-							$ad->write();
-						}
-						if ($conf->record_impressions_stats) {
-							$imp = new UniadsImpression;
-							$imp->AdID = $ad->ID;
-							$imp->write();
-						}
-					}
-				}
-			}
-		}
+                    $order = "rand()",
+                    $limit = 1
+                );
+                singleton('UniadsObject')->extend('augmentSQL', $sqlQuery);
+                //echo $sqlQuery->sql();
+                $result = $sqlQuery->execute();
+                if ($result && count($result) > 0) {
+                    $row = $result->First();
+                    if (isset($row['ID']) && $row['ID'] !== '') {
+                        $ad = UniadsObject::get()->byID($row['ID']);
+                        // now we can log impression
+                        $conf = UniadsObject::config();
+                        if ($conf->record_impressions) {
+                            $ad->Impressions++;
+                            $ad->write();
+                        }
+                        if ($conf->record_impressions_stats) {
+                            $imp = new UniadsImpression;
+                            $imp->AdID = $ad->ID;
+                            $imp->write();
+                        }
+                    }
+                }
+            }
+        }
 
-		if (!$ad) {
-			// Show an empty advert
-			$ad = new UniadsObject();
-		}
+        if (!$ad) {
+            // Show an empty advert
+            $ad = new UniadsObject();
+        }
 
-		$output = $ad->forTemplate();
+        $output = $ad->forTemplate();
 
-		if ($zone) {
-			foreach ($zone->ChildZones()->sort('Order') as $child) {
-				if ($child->Active) {
-					$output .= $this->DisplayAd($child);
-				}
-			}
-		}
+        if ($zone) {
+            foreach ($zone->ChildZones()->sort('Order') as $child) {
+                if ($child->Active) {
+                    $output .= $this->DisplayAd($child);
+                }
+            }
+        }
 
-		return $output;
-	}
-
+        return $output;
+    }
 }
